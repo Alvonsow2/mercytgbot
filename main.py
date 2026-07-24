@@ -31,13 +31,14 @@ def get_csv_filepath():
         return csv_files[0]
     return None
 
-# Mock database for user balances (In production, wire to Supabase/SQLite)
+# Mock user balance tracking
 USER_BALANCES = {}
 
 # ----------------------------------------------------
-# 2. Chinese-Exact Calculation Engine
+# 2. Chinese-Exact High Probability Engine
 # ----------------------------------------------------
 def calculate_dynamic_top3():
+    """Reads the CSV database and computes the most frequent combinations matching Chinese categories."""
     csv_path = get_csv_filepath()
     if not csv_path or not os.path.exists(csv_path):
         return None, None
@@ -49,10 +50,12 @@ def calculate_dynamic_top3():
         if 'Numbers' not in df.columns:
             return None, None
 
+        # 1. Overall top 3 combinations
         all_numbers = df['Numbers'].dropna().astype(str).str.strip().tolist()
         overall_counts = Counter(all_numbers)
         overall_top3 = [item[0] for item in overall_counts.most_common(3)]
 
+        # 2. Category mapping (dd, xd, xs, ds)
         category_mapping = {
             "Big Odd": "dd (大单)",
             "Large Single": "dd (大单)",
@@ -89,10 +92,11 @@ def calculate_dynamic_top3():
         return None, None
 
 def generate_chinese_broadcast_message():
+    """Formats the statistical analysis matching Chinese script output."""
     overall_top3, category_top3 = calculate_dynamic_top3()
 
     if not overall_top3 or len(overall_top3) < 3:
-        overall_top3 = ["0+2+9", "3+6+7", "1+5+9"]
+        overall_top3 = ["0+1+2", "3+6+9", "6+1+6"]
 
     msg = "==================================================\n"
     msg += "【KK哈希高概率组合自动播报】\n"
@@ -112,6 +116,7 @@ def generate_chinese_broadcast_message():
 # 3. Repeating Background Job (Automated 4-Min Broadcast)
 # ----------------------------------------------------
 async def auto_broadcast_job(context: ContextTypes.DEFAULT_TYPE):
+    """Sends prediction updates every 4 minutes."""
     chat_id = context.job.chat_id
     report = generate_chinese_broadcast_message()
     try:
@@ -124,10 +129,10 @@ async def auto_broadcast_job(context: ContextTypes.DEFAULT_TYPE):
         print(f"Auto-broadcast error: {e}")
 
 # ----------------------------------------------------
-# 4. Interactive Handlers
+# 4. Command & Button Handlers
 # ----------------------------------------------------
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Full Chinese-style interactive keyboard menu."""
+    """Renders persistent button menu."""
     reply_keyboard = [
         ["📊 High-Prob Predictions", "⏱️ Start Auto Broadcast"],
         ["💳 Crypto Deposit", "📤 Withdraw Funds"],
@@ -205,30 +210,33 @@ async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("👨‍💻 Need help? Tap the button below to reach out to Customer Support:", reply_markup=reply_markup)
 
+# Main router for text and buttons
 async def handle_text_and_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     chat_id = update.effective_chat.id
 
-    # Button Mappings
-    if text in ["📊 High-Prob Predictions", "/top", "/broadcast"]:
+    # 1. High-Prob Predictions
+    if text in ["📊 High-Prob Predictions", "📊 View Predictions", "/top", "/broadcast"]:
         report = generate_chinese_broadcast_message()
         await update.message.reply_text(f"```\n{report}\n```", parse_mode="MarkdownV2")
 
-    elif text == "⏱️ Start Auto Broadcast":
+    # 2. Start Auto Broadcast
+    elif text in ["⏱️ Start Auto Broadcast", "⏱️ Start Auto Broadcast (4 Min)"]:
         current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
         for job in current_jobs:
             job.schedule_removal()
 
         context.job_queue.run_repeating(
             auto_broadcast_job,
-            interval=240,
+            interval=240,  # 4 minutes
             first=1,
             chat_id=chat_id,
             name=str(chat_id)
         )
         await update.message.reply_text("✅ *Automated 4-minute broadcast started!*", parse_mode="Markdown")
 
-    elif text == "🛑 Stop Broadcast":
+    # 3. Stop Broadcast
+    elif text in ["🛑 Stop Broadcast", "🛑 Stop Auto Broadcast"]:
         current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
         if not current_jobs:
             await update.message.reply_text("ℹ️ No active automated broadcast found.")
@@ -237,23 +245,28 @@ async def handle_text_and_buttons(update: Update, context: ContextTypes.DEFAULT_
             job.schedule_removal()
         await update.message.reply_text("🛑 *Automated broadcast stopped.*", parse_mode="Markdown")
 
-    elif text in ["💳 Crypto Deposit", "/topup", "/deposit"]:
+    # 4. Crypto Deposit
+    elif text in ["💳 Crypto Deposit", "/topup", "/deposit", "/crypto"]:
         await crypto_deposit_command(update, context)
 
-    elif text in ["📤 Withdraw Funds", "/withdraw"]:
+    # 5. Withdraw Funds
+    elif text in ["📥 Withdraw Funds", "📤 Withdraw Funds", "/withdraw"]:
         await withdraw_command(update, context)
 
+    # 6. My Account Profile
     elif text in ["👤 My Account", "/balance", "/profile"]:
         await account_command(update, context)
 
-    elif text in ["📜 Game Rules", "/rules"]:
+    # 7. Game Rules
+    elif text in ["📜 Game Rules", "📜 Rules", "/rules"]:
         await rules_command(update, context)
 
-    elif text in ["👨‍💻 Contact Support", "/support"]:
+    # 8. Contact Support
+    elif text in ["👨‍💻 Contact Support", "👨‍💻 Support", "/support"]:
         await support_command(update, context)
 
+    # 9. Fallback: Search Database by Period Number
     else:
-        # Period Lookup Search
         csv_path = get_csv_filepath()
         if not csv_path or not os.path.exists(csv_path):
             await update.message.reply_text("Database is currently unavailable.")
@@ -272,7 +285,7 @@ async def handle_text_and_buttons(update: Update, context: ContextTypes.DEFAULT_
                 matched_rows = df[mask]
 
             if matched_rows.empty:
-                await update.message.reply_text("❌ No matching records found. Please tap a menu option or enter a Period number.")
+                await update.message.reply_text("❌ Command not recognized. Please tap a menu option or enter a Period number.")
                 return
 
             row = matched_rows.iloc[0]
@@ -304,7 +317,7 @@ def run_flask():
     app.run(host="0.0.0.0", port=port)
 
 # ----------------------------------------------------
-# 6. Main Execution
+# 6. Main Application Execution
 # ----------------------------------------------------
 def main():
     flask_thread = threading.Thread(target=run_flask)
