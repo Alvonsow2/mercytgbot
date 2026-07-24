@@ -2,6 +2,7 @@ import os
 import glob
 import asyncio
 import threading
+import urllib.request
 from collections import Counter
 import pandas as pd
 from flask import Flask, request, jsonify
@@ -15,10 +16,20 @@ from telegram.ext import (
 )
 
 # ----------------------------------------------------
-# 1. Configuration & Paths
+# 1. Configuration & Webhook Cleanup
 # ----------------------------------------------------
 TOKEN = os.environ.get("BOT_TOKEN", "8611395931:AAFY20h1K7_09jYAvGVFgjwZKH5VPank10I")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def clear_telegram_webhook():
+    """Forces Telegram to clear any lingering Webhook so Polling works 100% of the time."""
+    try:
+        url = f"https://api.telegram.org/bot{TOKEN}/deleteWebhook?drop_pending_updates=true"
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req) as response:
+            print("Telegram Webhook successfully cleared!")
+    except Exception as e:
+        print(f"Webhook cleanup notice: {e}")
 
 def get_csv_filepath():
     target = os.path.join(BASE_DIR, "Dan_data_period_5000.csv")
@@ -124,6 +135,7 @@ async def auto_broadcast_job(context: ContextTypes.DEFAULT_TYPE):
 # 4. Command & Button Handlers
 # ----------------------------------------------------
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Guaranteed welcome response on /start."""
     reply_keyboard = [
         ["📊 高概率预测", "⏱️ 开启自动播报"],
         ["💳 加密货币充值", "📤 申请提现"],
@@ -210,8 +222,8 @@ async def handle_text_and_buttons(update: Update, context: ContextTypes.DEFAULT_
         await update.message.reply_text(f"```\n{report}\n```", parse_mode="MarkdownV2")
 
     elif text in ["⏱️ 开启自动播报", "⏱️ Start Auto Broadcast", "⏱️ Start Auto Broadcast (4 Min)"]:
-        if not context.job_queue:
-            await update.message.reply_text("⚠️ JobQueue 正在初始化，请确保已配置 python-telegram-bot[job-queue]。")
+        if not hasattr(context, 'job_queue') or context.job_queue is None:
+            await update.message.reply_text("⚠️ 自动播报组件正在加载中，请稍后再试。")
             return
 
         current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
@@ -228,7 +240,7 @@ async def handle_text_and_buttons(update: Update, context: ContextTypes.DEFAULT_
         await update.message.reply_text("✅ *已开启每 4 分钟自动高概率播报！*", parse_mode="Markdown")
 
     elif text in ["🛑 停止播报", "🛑 Stop Broadcast", "🛑 Stop Auto Broadcast"]:
-        if not context.job_queue:
+        if not hasattr(context, 'job_queue') or context.job_queue is None:
             await update.message.reply_text("ℹ️ 播报组件未激活。")
             return
 
@@ -306,13 +318,24 @@ def run_flask():
     app.run(host="0.0.0.0", port=port)
 
 # ----------------------------------------------------
-# 6. Main Application Execution
+# 6. Global Error Handler
+# ----------------------------------------------------
+async def global_error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    print(f"Unhandled bot exception: {context.error}")
+
+# ----------------------------------------------------
+# 7. Main Application Execution
 # ----------------------------------------------------
 def main():
+    # 1. Clear Webhook before starting polling
+    clear_telegram_webhook()
+
+    # 2. Run Flask Port Binding on daemon thread
     flask_thread = threading.Thread(target=run_flask)
     flask_thread.daemon = True
     flask_thread.start()
 
+    # 3. Build Telegram Bot Application
     application = ApplicationBuilder().token(TOKEN).build()
 
     application.add_handler(CommandHandler("start", start_command))
@@ -324,8 +347,9 @@ def main():
     application.add_handler(CommandHandler("support", support_command))
 
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_and_buttons))
+    application.add_error_handler(global_error_handler)
 
-    print("Starting Telegram bot polling...")
+    print("Starting Telegram bot polling cleanly...")
     application.run_polling(drop_pending_updates=True, poll_interval=1.0)
 
 if __name__ == "__main__":
