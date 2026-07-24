@@ -31,11 +31,13 @@ def get_csv_filepath():
         return csv_files[0]
     return None
 
+# Mock database for user balances (In production, wire to Supabase/SQLite)
+USER_BALANCES = {}
+
 # ----------------------------------------------------
-# 2. Chinese-Exact High Probability Calculation Engine
+# 2. Chinese-Exact Calculation Engine
 # ----------------------------------------------------
 def calculate_dynamic_top3():
-    """Reads the CSV database and computes the most frequent combinations matching Chinese categories."""
     csv_path = get_csv_filepath()
     if not csv_path or not os.path.exists(csv_path):
         return None, None
@@ -47,12 +49,10 @@ def calculate_dynamic_top3():
         if 'Numbers' not in df.columns:
             return None, None
 
-        # 1. Calculate overall top 3 combinations
         all_numbers = df['Numbers'].dropna().astype(str).str.strip().tolist()
         overall_counts = Counter(all_numbers)
         overall_top3 = [item[0] for item in overall_counts.most_common(3)]
 
-        # 2. Map standard categories to exact Chinese script labels (dd, xd, xs, ds)
         category_mapping = {
             "Big Odd": "dd (大单)",
             "Large Single": "dd (大单)",
@@ -82,8 +82,6 @@ def calculate_dynamic_top3():
                 
                 if target_key in category_top3:
                     category_top3[target_key] = top_items
-                else:
-                    category_top3[target_key] = top_items
 
         return overall_top3, category_top3
     except Exception as e:
@@ -91,7 +89,6 @@ def calculate_dynamic_top3():
         return None, None
 
 def generate_chinese_broadcast_message():
-    """Formats the statistical analysis to MATCH EXACTLY the Chinese script from screenshot 173471.jpg."""
     overall_top3, category_top3 = calculate_dynamic_top3()
 
     if not overall_top3 or len(overall_top3) < 3:
@@ -115,7 +112,6 @@ def generate_chinese_broadcast_message():
 # 3. Repeating Background Job (Automated 4-Min Broadcast)
 # ----------------------------------------------------
 async def auto_broadcast_job(context: ContextTypes.DEFAULT_TYPE):
-    """Sends broadcast predictions automatically every 4 minutes."""
     chat_id = context.job.chat_id
     report = generate_chinese_broadcast_message()
     try:
@@ -125,31 +121,28 @@ async def auto_broadcast_job(context: ContextTypes.DEFAULT_TYPE):
             parse_mode="MarkdownV2"
         )
     except Exception as e:
-        print(f"Auto-broadcast error for chat {chat_id}: {e}")
+        print(f"Auto-broadcast error: {e}")
 
 # ----------------------------------------------------
-# 4. Telegram Bot Handlers
+# 4. Interactive Handlers
 # ----------------------------------------------------
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Displays the main click-to-tap persistent button keyboard."""
+    """Full Chinese-style interactive keyboard menu."""
     reply_keyboard = [
-        ["📊 View Predictions", "⏱️ Start Auto Broadcast (4 Min)"],
-        ["💎 Crypto Deposit", "🛑 Stop Auto Broadcast"]
+        ["📊 High-Prob Predictions", "⏱️ Start Auto Broadcast"],
+        ["💳 Crypto Deposit", "📤 Withdraw Funds"],
+        ["👤 My Account", "📜 Game Rules"],
+        ["👨‍💻 Contact Support", "🛑 Stop Broadcast"]
     ]
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True)
 
     welcome_text = (
-        "Welcome to *Mercy Betting Company*!\n\n"
-        "Tap any button below to interact instantly without typing:\n"
-        "• *View Predictions:* Get immediate TOP 3 combinations.\n"
-        "• *Start Auto Broadcast:* Receive automated updates every 4 minutes.\n"
-        "• *Crypto Deposit:* Load funds via USDT / TON / BTC.\n"
-        "• *Period Lookup:* Type any period number (e.g. `5000`) directly."
+        "🎰 *Welcome to Mercy KK Hash Platform!*\n\n"
+        "Tap any button below to navigate through the platform features:"
     )
     await update.message.reply_text(welcome_text, reply_markup=markup, parse_mode="Markdown")
 
 async def crypto_deposit_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Generates crypto deposit buttons."""
     user_id = update.effective_user.id
     payment_url = f"https://t.me/wallet?startattach=order_{user_id}"
     
@@ -159,92 +152,139 @@ async def crypto_deposit_command(update: Update, context: ContextTypes.DEFAULT_T
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     deposit_msg = (
-        "💎 *CRYPTO TOP-UP & DEPOSIT*\n"
+        "💎 *CRYPTO DEPOSIT GATEWAY*\n"
         "───────────────────────────\n"
-        "Select your preferred cryptocurrency to deposit:\n"
+        "Select your cryptocurrency to top up:\n"
         "• *USDT (TRC-20 / TON)*\n"
         "• *Bitcoin (BTC)*\n"
         "• *TON Coin*\n\n"
-        "Click the button below to complete your deposit:"
+        "Tap below to initiate instant payment:"
     )
     await update.message.reply_text(deposit_msg, reply_markup=reply_markup, parse_mode="Markdown")
 
-async def handle_button_clicks(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handles taps on persistent menu buttons and text search queries."""
+async def withdraw_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    withdraw_msg = (
+        "📤 *CRYPTO WITHDRAWAL*\n"
+        "───────────────────────────\n"
+        "To request a withdrawal, reply with your payment details in this format:\n\n"
+        "`/withdraw [AMOUNT] [USDT_TRC20_ADDRESS]`\n\n"
+        "Example:\n`/withdraw 50 T9xXX...xxxx`"
+    )
+    await update.message.reply_text(withdraw_msg, parse_mode="Markdown")
+
+async def account_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    balance = USER_BALANCES.get(user.id, 0.00)
+    
+    account_msg = (
+        f"👤 *USER ACCOUNT PROFILE*\n"
+        f"───────────────────────────\n"
+        f"• *User:* {user.first_name} (`{user.id}`)\n"
+        f"• *Balance:* `{balance:.2f} USDT`\n"
+        f"• *Status:* Active ✅\n\n"
+        f"Tap *💳 Crypto Deposit* to add funds."
+    )
+    await update.message.reply_text(account_msg, parse_mode="Markdown")
+
+async def rules_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    rules_text = (
+        "📜 *KK HASH GAME RULES & CATEGORIES*\n"
+        "───────────────────────────\n"
+        "• *dd (大单 / Large Single):* Numbers ending in 5, 7, 9\n"
+        "• *xd (小单 / Small Single):* Numbers ending in 1, 3\n"
+        "• *xs (小双 / Small Double):* Numbers ending in 0, 2, 4\n"
+        "• *ds (大双 / Large Double):* Numbers ending in 6, 8\n\n"
+        "Predictions update automatically based on real-time period statistical algorithms."
+    )
+    await update.message.reply_text(rules_text, parse_mode="Markdown")
+
+async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("💬 Chat with Admin Support", url="https://t.me/telegram")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("👨‍💻 Need help? Tap the button below to reach out to Customer Support:", reply_markup=reply_markup)
+
+async def handle_text_and_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     chat_id = update.effective_chat.id
 
-    # 1. Tap Button: View Predictions
-    if text in ["📊 View Predictions", "/top", "/broadcast"]:
+    # Button Mappings
+    if text in ["📊 High-Prob Predictions", "/top", "/broadcast"]:
         report = generate_chinese_broadcast_message()
         await update.message.reply_text(f"```\n{report}\n```", parse_mode="MarkdownV2")
-        return
 
-    # 2. Tap Button: Start Auto Broadcast (Every 4 minutes)
-    elif text == "⏱️ Start Auto Broadcast (4 Min)":
+    elif text == "⏱️ Start Auto Broadcast":
         current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
         for job in current_jobs:
             job.schedule_removal()
 
         context.job_queue.run_repeating(
             auto_broadcast_job,
-            interval=240,  # 240 seconds = 4 minutes
+            interval=240,
             first=1,
             chat_id=chat_id,
             name=str(chat_id)
         )
-        await update.message.reply_text("✅ *Automated 4-minute broadcast started!* You will receive results every 4 minutes.", parse_mode="Markdown")
-        return
+        await update.message.reply_text("✅ *Automated 4-minute broadcast started!*", parse_mode="Markdown")
 
-    # 3. Tap Button: Stop Auto Broadcast
-    elif text == "🛑 Stop Auto Broadcast":
+    elif text == "🛑 Stop Broadcast":
         current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
         if not current_jobs:
             await update.message.reply_text("ℹ️ No active automated broadcast found.")
             return
-
         for job in current_jobs:
             job.schedule_removal()
         await update.message.reply_text("🛑 *Automated broadcast stopped.*", parse_mode="Markdown")
-        return
 
-    # 4. Tap Button: Crypto Deposit
-    elif text in ["💎 Crypto Deposit", "/topup", "/deposit", "/crypto"]:
+    elif text in ["💳 Crypto Deposit", "/topup", "/deposit"]:
         await crypto_deposit_command(update, context)
-        return
 
-    # 5. Fallback: Search Database by Period Number or Keyword
-    csv_path = get_csv_filepath()
-    if not csv_path or not os.path.exists(csv_path):
-        await update.message.reply_text("Database is currently unavailable.")
-        return
+    elif text in ["📤 Withdraw Funds", "/withdraw"]:
+        await withdraw_command(update, context)
 
-    try:
-        df = pd.read_csv(csv_path)
-        df.columns = df.columns.str.strip()
+    elif text in ["👤 My Account", "/balance", "/profile"]:
+        await account_command(update, context)
 
-        matched_rows = pd.DataFrame()
-        if 'Period' in df.columns:
-            matched_rows = df[df['Period'].astype(str).str.strip().str.lower() == text.lower()]
+    elif text in ["📜 Game Rules", "/rules"]:
+        await rules_command(update, context)
 
-        if matched_rows.empty:
-            mask = df.astype(str).apply(lambda row: row.str.contains(text, case=False, na=False)).any(axis=1)
-            matched_rows = df[mask]
+    elif text in ["👨‍💻 Contact Support", "/support"]:
+        await support_command(update, context)
 
-        if matched_rows.empty:
-            await update.message.reply_text("❌ No matching records found. Please tap a menu option or enter a valid Period number.")
+    else:
+        # Period Lookup Search
+        csv_path = get_csv_filepath()
+        if not csv_path or not os.path.exists(csv_path):
+            await update.message.reply_text("Database is currently unavailable.")
             return
 
-        row = matched_rows.iloc[0]
-        reply_msg = "🔍 *Match Result:*\n\n"
-        for col in df.columns:
-            reply_msg += f"• *{col}*: {row[col]}\n"
+        try:
+            df = pd.read_csv(csv_path)
+            df.columns = df.columns.str.strip()
 
-        await update.message.reply_text(reply_msg, parse_mode="Markdown")
+            matched_rows = pd.DataFrame()
+            if 'Period' in df.columns:
+                matched_rows = df[df['Period'].astype(str).str.strip().str.lower() == text.lower()]
 
-    except Exception as e:
-        print(f"Search error: {e}")
-        await update.message.reply_text("⚠️ An error occurred while searching.")
+            if matched_rows.empty:
+                mask = df.astype(str).apply(lambda row: row.str.contains(text, case=False, na=False)).any(axis=1)
+                matched_rows = df[mask]
+
+            if matched_rows.empty:
+                await update.message.reply_text("❌ No matching records found. Please tap a menu option or enter a Period number.")
+                return
+
+            row = matched_rows.iloc[0]
+            reply_msg = "🔍 *Match Result:*\n\n"
+            for col in df.columns:
+                reply_msg += f"• *{col}*: {row[col]}\n"
+
+            await update.message.reply_text(reply_msg, parse_mode="Markdown")
+
+        except Exception as e:
+            print(f"Search error: {e}")
+            await update.message.reply_text("⚠️ An error occurred while searching.")
 
 # ----------------------------------------------------
 # 5. Flask Web Server
@@ -257,8 +297,6 @@ def home():
 
 @app.route('/webhook/crypto', methods=['POST'])
 def crypto_webhook():
-    data = request.json
-    print(f"Payment webhook event: {data}")
     return jsonify({"status": "ok"}), 200
 
 def run_flask():
@@ -266,7 +304,7 @@ def run_flask():
     app.run(host="0.0.0.0", port=port)
 
 # ----------------------------------------------------
-# 6. Main Application Loop
+# 6. Main Execution
 # ----------------------------------------------------
 def main():
     flask_thread = threading.Thread(target=run_flask)
@@ -275,13 +313,15 @@ def main():
 
     application = ApplicationBuilder().token(TOKEN).build()
 
-    # Commands
     application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler(["top", "broadcast"], handle_button_clicks))
+    application.add_handler(CommandHandler(["top", "broadcast"], handle_text_and_buttons))
     application.add_handler(CommandHandler(["topup", "deposit", "crypto", "wallet"], crypto_deposit_command))
+    application.add_handler(CommandHandler("withdraw", withdraw_command))
+    application.add_handler(CommandHandler(["balance", "profile"], account_command))
+    application.add_handler(CommandHandler("rules", rules_command))
+    application.add_handler(CommandHandler("support", support_command))
 
-    # Single handler for persistent keyboard buttons & period searches
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_button_clicks))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_and_buttons))
 
     print("Starting Telegram bot polling...")
     application.run_polling(drop_pending_updates=True)
