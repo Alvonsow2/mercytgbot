@@ -16,15 +16,29 @@ def run_flask():
     port = int(os.environ.get("PORT", 10000))
     web_app.run(host="0.0.0.0", port=port)
 
-# --- LOAD CSV DATASET ---
-CSV_FILE = "Dan_data_5000.csv"
+# --- DYNAMIC FILE PATH LOCATOR ---
+# Finds the absolute path to main.py's directory so Render never loses the CSV
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# Tries exact filename first, or falls back to any .csv in the repository
+CSV_FILE = os.path.join(BASE_DIR, "Dan_data_5000.csv")
+
+df = None
 try:
-    df = pd.read_csv(CSV_FILE)
-    print("CSV loaded successfully!")
+    if os.path.exists(CSV_FILE):
+        df = pd.read_csv(CSV_FILE)
+        print(f"✅ Loaded main database: {CSV_FILE}")
+    else:
+        # Fallback search for any CSV file sitting in the folder
+        csv_files = [f for f in os.listdir(BASE_DIR) if f.endswith('.csv')]
+        if csv_files:
+            fallback_path = os.path.join(BASE_DIR, csv_files[0])
+            df = pd.read_csv(fallback_path)
+            print(f"✅ Loaded fallback database: {fallback_path}")
+        else:
+            print("❌ No CSV file found in the project directory!")
 except Exception as e:
-    print(f"Error loading CSV: {e}")
-    df = None
+    print(f"❌ Error loading CSV: {e}")
 
 # --- TELEGRAM BOT HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -34,14 +48,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text.strip()
     
     if df is None:
-        await update.message.reply_text("Database is currently unavailable.")
+        await update.message.reply_text("Database is currently unavailable. Please ensure the CSV file is uploaded to GitHub.")
         return
 
     # Case-insensitive search across all CSV columns
     matches = df[df.apply(lambda row: row.astype(str).str.contains(user_text, case=False).any(), axis=1)]
 
     if not matches.empty:
-        # Format top match nicely
+        # Format the top match neatly
         first_match = matches.iloc[0]
         result_str = "🔍 **Match Result:**\n\n"
         for col in matches.columns:
@@ -55,7 +69,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 if __name__ == '__main__':
     TOKEN = os.getenv("BOT_TOKEN")
     
-    # Start Flask in background thread
+    # Start Flask health-check in background thread
     threading.Thread(target=run_flask, daemon=True).start()
     
     # Start Telegram Bot Polling
