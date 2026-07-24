@@ -17,7 +17,7 @@ def run_flask():
     web_app.run(host="0.0.0.0", port=port)
 
 # --- LOAD CSV DATASET ---
-CSV_FILE = "Dan_Dan_Talbot_data_period_5000.csv"
+CSV_FILE = "Dan_data_5000.csv"
 
 try:
     df = pd.read_csv(CSV_FILE)
