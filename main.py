@@ -31,7 +31,7 @@ def get_csv_filepath():
         return csv_files[0]
     return None
 
-# Mock user balance tracking
+# User balance tracking
 USER_BALANCES = {}
 
 # ----------------------------------------------------
@@ -55,7 +55,7 @@ def calculate_dynamic_top3():
         overall_counts = Counter(all_numbers)
         overall_top3 = [item[0] for item in overall_counts.most_common(3)]
 
-        # 2. Category mapping (dd, xd, xs, ds)
+        # 2. Category mapping
         category_mapping = {
             "Big Odd": "dd (大单)",
             "Large Single": "dd (大单)",
@@ -129,21 +129,21 @@ async def auto_broadcast_job(context: ContextTypes.DEFAULT_TYPE):
         print(f"Auto-broadcast error: {e}")
 
 # ----------------------------------------------------
-# 4. Command & Button Handlers
+# 4. Command & Button Handlers (Simplified Chinese)
 # ----------------------------------------------------
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Renders persistent button menu."""
+    """Renders persistent button menu in Simplified Chinese."""
     reply_keyboard = [
-        ["📊 High-Prob Predictions", "⏱️ Start Auto Broadcast"],
-        ["💳 Crypto Deposit", "📤 Withdraw Funds"],
-        ["👤 My Account", "📜 Game Rules"],
-        ["👨‍💻 Contact Support", "🛑 Stop Broadcast"]
+        ["📊 高概率预测", "⏱️ 开启自动播报"],
+        ["💳 加密货币充值", "📤 申请提现"],
+        ["👤 个人中心", "📜 游戏规则"],
+        ["👨‍💻 联系客服", "🛑 停止播报"]
     ]
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True)
 
     welcome_text = (
-        "🎰 *Welcome to Mercy KK Hash Platform!*\n\n"
-        "Tap any button below to navigate through the platform features:"
+        "🎰 *欢迎使用 Mercy KK 哈希平台！*\n\n"
+        "请点击下方菜单按钮快速使用相关功能："
     )
     await update.message.reply_text(welcome_text, reply_markup=markup, parse_mode="Markdown")
 
@@ -152,28 +152,28 @@ async def crypto_deposit_command(update: Update, context: ContextTypes.DEFAULT_T
     payment_url = f"https://t.me/wallet?startattach=order_{user_id}"
     
     keyboard = [
-        [InlineKeyboardButton("💳 Pay via Crypto Wallet (USDT / TON / BTC)", url=payment_url)]
+        [InlineKeyboardButton("💳 通过加密钱包支付 (USDT / TON / BTC)", url=payment_url)]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     deposit_msg = (
-        "💎 *CRYPTO DEPOSIT GATEWAY*\n"
+        "💎 *加密货币充值通道*\n"
         "───────────────────────────\n"
-        "Select your cryptocurrency to top up:\n"
+        "请选择您要充值的加密货币币种：\n"
         "• *USDT (TRC-20 / TON)*\n"
-        "• *Bitcoin (BTC)*\n"
+        "• *比特币 (BTC)*\n"
         "• *TON Coin*\n\n"
-        "Tap below to initiate instant payment:"
+        "点击下方按钮进行即时充值："
     )
     await update.message.reply_text(deposit_msg, reply_markup=reply_markup, parse_mode="Markdown")
 
 async def withdraw_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     withdraw_msg = (
-        "📤 *CRYPTO WITHDRAWAL*\n"
+        "📤 *加密货币提现*\n"
         "───────────────────────────\n"
-        "To request a withdrawal, reply with your payment details in this format:\n\n"
-        "`/withdraw [AMOUNT] [USDT_TRC20_ADDRESS]`\n\n"
-        "Example:\n`/withdraw 50 T9xXX...xxxx`"
+        "如需申请提现，请按照以下格式直接回复指令：\n\n"
+        "`/withdraw [金额] [USDT_TRC20收款地址]`\n\n"
+        "示例：\n`/withdraw 50 T9xXX...xxxx`"
     )
     await update.message.reply_text(withdraw_msg, parse_mode="Markdown")
 
@@ -182,46 +182,46 @@ async def account_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     balance = USER_BALANCES.get(user.id, 0.00)
     
     account_msg = (
-        f"👤 *USER ACCOUNT PROFILE*\n"
+        f"👤 *个人中心*\n"
         f"───────────────────────────\n"
-        f"• *User:* {user.first_name} (`{user.id}`)\n"
-        f"• *Balance:* `{balance:.2f} USDT`\n"
-        f"• *Status:* Active ✅\n\n"
-        f"Tap *💳 Crypto Deposit* to add funds."
+        f"• *用户姓名:* {user.first_name} (`{user.id}`)\n"
+        f"• *账户余额:* `{balance:.2f} USDT`\n"
+        f"• *账号状态:* 正常 ✅\n\n"
+        f"点击 *💳 加密货币充值* 可快速添加资金。"
     )
     await update.message.reply_text(account_msg, parse_mode="Markdown")
 
 async def rules_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rules_text = (
-        "📜 *KK HASH GAME RULES & CATEGORIES*\n"
+        "📜 *KK 哈希玩法说明与分类规则*\n"
         "───────────────────────────\n"
-        "• *dd (大单 / Large Single):* Numbers ending in 5, 7, 9\n"
-        "• *xd (小单 / Small Single):* Numbers ending in 1, 3\n"
-        "• *xs (小双 / Small Double):* Numbers ending in 0, 2, 4\n"
-        "• *ds (大双 / Large Double):* Numbers ending in 6, 8\n\n"
-        "Predictions update automatically based on real-time period statistical algorithms."
+        "• *dd (大单):* 尾数为 5、7、9\n"
+        "• *xd (小单):* 尾数为 1、3\n"
+        "• *xs (小双):* 尾数为 0、2、4\n"
+        "• *ds (大双):* 尾数为 6、8\n\n"
+        "系统将根据实时期数数据算法自动更新并预测高概率组合。"
     )
     await update.message.reply_text(rules_text, parse_mode="Markdown")
 
 async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        [InlineKeyboardButton("💬 Chat with Admin Support", url="https://t.me/telegram")]
+        [InlineKeyboardButton("💬 联系在线客服", url="https://t.me/telegram")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("👨‍💻 Need help? Tap the button below to reach out to Customer Support:", reply_markup=reply_markup)
+    await update.message.reply_text("👨‍💻 需要帮助？点击下方按钮直通专职客服：", reply_markup=reply_markup)
 
-# Main router for text and buttons
+# Main router for Chinese text, commands, and buttons
 async def handle_text_and_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     chat_id = update.effective_chat.id
 
-    # 1. High-Prob Predictions
-    if text in ["📊 High-Prob Predictions", "📊 View Predictions", "/top", "/broadcast"]:
+    # 1. 高概率预测 (Predictions)
+    if text in ["📊 高概率预测", "📊 High-Prob Predictions", "/top", "/broadcast"]:
         report = generate_chinese_broadcast_message()
         await update.message.reply_text(f"```\n{report}\n```", parse_mode="MarkdownV2")
 
-    # 2. Start Auto Broadcast
-    elif text in ["⏱️ Start Auto Broadcast", "⏱️ Start Auto Broadcast (4 Min)"]:
+    # 2. 开启自动播报 (Start Auto Broadcast - Every 4 mins)
+    elif text in ["⏱️ 开启自动播报", "⏱️ Start Auto Broadcast", "⏱️ Start Auto Broadcast (4 Min)"]:
         current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
         for job in current_jobs:
             job.schedule_removal()
@@ -233,43 +233,43 @@ async def handle_text_and_buttons(update: Update, context: ContextTypes.DEFAULT_
             chat_id=chat_id,
             name=str(chat_id)
         )
-        await update.message.reply_text("✅ *Automated 4-minute broadcast started!*", parse_mode="Markdown")
+        await update.message.reply_text("✅ *已开启每 4 分钟自动高概率播报！*", parse_mode="Markdown")
 
-    # 3. Stop Broadcast
-    elif text in ["🛑 Stop Broadcast", "🛑 Stop Auto Broadcast"]:
+    # 3. 停止播报 (Stop Auto Broadcast)
+    elif text in ["🛑 停止播报", "🛑 Stop Broadcast", "🛑 Stop Auto Broadcast"]:
         current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
         if not current_jobs:
-            await update.message.reply_text("ℹ️ No active automated broadcast found.")
+            await update.message.reply_text("ℹ️ 当前没有运行中的自动播报任务。")
             return
         for job in current_jobs:
             job.schedule_removal()
-        await update.message.reply_text("🛑 *Automated broadcast stopped.*", parse_mode="Markdown")
+        await update.message.reply_text("🛑 *已成功停止自动播报。*", parse_mode="Markdown")
 
-    # 4. Crypto Deposit
-    elif text in ["💳 Crypto Deposit", "/topup", "/deposit", "/crypto"]:
+    # 4. 加密货币充值 (Deposit)
+    elif text in ["💳 加密货币充值", "💳 Crypto Deposit", "/topup", "/deposit", "/crypto"]:
         await crypto_deposit_command(update, context)
 
-    # 5. Withdraw Funds
-    elif text in ["📥 Withdraw Funds", "📤 Withdraw Funds", "/withdraw"]:
+    # 5. 申请提现 (Withdraw)
+    elif text in ["📤 申请提现", "📥 Withdraw Funds", "📤 Withdraw Funds", "/withdraw"]:
         await withdraw_command(update, context)
 
-    # 6. My Account Profile
-    elif text in ["👤 My Account", "/balance", "/profile"]:
+    # 6. 个人中心 (My Account)
+    elif text in ["👤 个人中心", "👤 My Account", "/balance", "/profile"]:
         await account_command(update, context)
 
-    # 7. Game Rules
-    elif text in ["📜 Game Rules", "📜 Rules", "/rules"]:
+    # 7. 游戏规则 (Game Rules)
+    elif text in ["📜 游戏规则", "📜 Game Rules", "/rules"]:
         await rules_command(update, context)
 
-    # 8. Contact Support
-    elif text in ["👨‍💻 Contact Support", "👨‍💻 Support", "/support"]:
+    # 8. 联系客服 (Contact Support)
+    elif text in ["👨‍💻 联系客服", "👨‍💻 Contact Support", "/support"]:
         await support_command(update, context)
 
     # 9. Fallback: Search Database by Period Number
     else:
         csv_path = get_csv_filepath()
         if not csv_path or not os.path.exists(csv_path):
-            await update.message.reply_text("Database is currently unavailable.")
+            await update.message.reply_text("数据库暂时不可用。")
             return
 
         try:
@@ -285,11 +285,11 @@ async def handle_text_and_buttons(update: Update, context: ContextTypes.DEFAULT_
                 matched_rows = df[mask]
 
             if matched_rows.empty:
-                await update.message.reply_text("❌ Command not recognized. Please tap a menu option or enter a Period number.")
+                await update.message.reply_text("❌ 无法识别指令。请点击上方菜单按钮或输入有效的期号查询。")
                 return
 
             row = matched_rows.iloc[0]
-            reply_msg = "🔍 *Match Result:*\n\n"
+            reply_msg = "🔍 *期号查询结果：*\n\n"
             for col in df.columns:
                 reply_msg += f"• *{col}*: {row[col]}\n"
 
@@ -297,7 +297,7 @@ async def handle_text_and_buttons(update: Update, context: ContextTypes.DEFAULT_
 
         except Exception as e:
             print(f"Search error: {e}")
-            await update.message.reply_text("⚠️ An error occurred while searching.")
+            await update.message.reply_text("⚠️ 查询过程中发生错误。")
 
 # ----------------------------------------------------
 # 5. Flask Web Server
