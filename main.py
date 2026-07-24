@@ -10,7 +10,6 @@ from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     MessageHandler,
-    CallbackQueryHandler,
     ContextTypes,
     filters
 )
@@ -22,7 +21,6 @@ TOKEN = os.environ.get("BOT_TOKEN", "8611395931:AAFY20h1K7_09jYAvGVFgjwZKH5VPank
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def get_csv_filepath():
-    """Finds the CSV file dynamically in the repository."""
     target = os.path.join(BASE_DIR, "Dan_data_period_5000.csv")
     if os.path.exists(target):
         return target
@@ -31,14 +29,12 @@ def get_csv_filepath():
         return csv_files[0]
     return None
 
-# User balance tracking
 USER_BALANCES = {}
 
 # ----------------------------------------------------
 # 2. Chinese-Exact High Probability Engine
 # ----------------------------------------------------
 def calculate_dynamic_top3():
-    """Reads the CSV database and computes the most frequent combinations matching Chinese categories."""
     csv_path = get_csv_filepath()
     if not csv_path or not os.path.exists(csv_path):
         return None, None
@@ -50,12 +46,10 @@ def calculate_dynamic_top3():
         if 'Numbers' not in df.columns:
             return None, None
 
-        # 1. Overall top 3 combinations
         all_numbers = df['Numbers'].dropna().astype(str).str.strip().tolist()
         overall_counts = Counter(all_numbers)
         overall_top3 = [item[0] for item in overall_counts.most_common(3)]
 
-        # 2. Category mapping
         category_mapping = {
             "Big Odd": "dd (大单)",
             "Large Single": "dd (大单)",
@@ -92,7 +86,6 @@ def calculate_dynamic_top3():
         return None, None
 
 def generate_chinese_broadcast_message():
-    """Formats the statistical analysis matching Chinese script output."""
     overall_top3, category_top3 = calculate_dynamic_top3()
 
     if not overall_top3 or len(overall_top3) < 3:
@@ -113,10 +106,9 @@ def generate_chinese_broadcast_message():
     return msg
 
 # ----------------------------------------------------
-# 3. Repeating Background Job (Automated 4-Min Broadcast)
+# 3. Repeating Background Job
 # ----------------------------------------------------
 async def auto_broadcast_job(context: ContextTypes.DEFAULT_TYPE):
-    """Sends prediction updates every 4 minutes."""
     chat_id = context.job.chat_id
     report = generate_chinese_broadcast_message()
     try:
@@ -129,10 +121,9 @@ async def auto_broadcast_job(context: ContextTypes.DEFAULT_TYPE):
         print(f"Auto-broadcast error: {e}")
 
 # ----------------------------------------------------
-# 4. Command & Button Handlers (Simplified Chinese)
+# 4. Command & Button Handlers
 # ----------------------------------------------------
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Renders persistent button menu in Simplified Chinese."""
     reply_keyboard = [
         ["📊 高概率预测", "⏱️ 开启自动播报"],
         ["💳 加密货币充值", "📤 申请提现"],
@@ -210,33 +201,37 @@ async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("👨‍💻 需要帮助？点击下方按钮直通专职客服：", reply_markup=reply_markup)
 
-# Main router for Chinese text, commands, and buttons
 async def handle_text_and_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     chat_id = update.effective_chat.id
 
-    # 1. 高概率预测 (Predictions)
     if text in ["📊 高概率预测", "📊 High-Prob Predictions", "/top", "/broadcast"]:
         report = generate_chinese_broadcast_message()
         await update.message.reply_text(f"```\n{report}\n```", parse_mode="MarkdownV2")
 
-    # 2. 开启自动播报 (Start Auto Broadcast - Every 4 mins)
     elif text in ["⏱️ 开启自动播报", "⏱️ Start Auto Broadcast", "⏱️ Start Auto Broadcast (4 Min)"]:
+        if not context.job_queue:
+            await update.message.reply_text("⚠️ JobQueue 正在初始化，请确保已配置 python-telegram-bot[job-queue]。")
+            return
+
         current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
         for job in current_jobs:
             job.schedule_removal()
 
         context.job_queue.run_repeating(
             auto_broadcast_job,
-            interval=240,  # 4 minutes
+            interval=240,
             first=1,
             chat_id=chat_id,
             name=str(chat_id)
         )
         await update.message.reply_text("✅ *已开启每 4 分钟自动高概率播报！*", parse_mode="Markdown")
 
-    # 3. 停止播报 (Stop Auto Broadcast)
     elif text in ["🛑 停止播报", "🛑 Stop Broadcast", "🛑 Stop Auto Broadcast"]:
+        if not context.job_queue:
+            await update.message.reply_text("ℹ️ 播报组件未激活。")
+            return
+
         current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
         if not current_jobs:
             await update.message.reply_text("ℹ️ 当前没有运行中的自动播报任务。")
@@ -245,27 +240,21 @@ async def handle_text_and_buttons(update: Update, context: ContextTypes.DEFAULT_
             job.schedule_removal()
         await update.message.reply_text("🛑 *已成功停止自动播报。*", parse_mode="Markdown")
 
-    # 4. 加密货币充值 (Deposit)
     elif text in ["💳 加密货币充值", "💳 Crypto Deposit", "/topup", "/deposit", "/crypto"]:
         await crypto_deposit_command(update, context)
 
-    # 5. 申请提现 (Withdraw)
     elif text in ["📤 申请提现", "📥 Withdraw Funds", "📤 Withdraw Funds", "/withdraw"]:
         await withdraw_command(update, context)
 
-    # 6. 个人中心 (My Account)
     elif text in ["👤 个人中心", "👤 My Account", "/balance", "/profile"]:
         await account_command(update, context)
 
-    # 7. 游戏规则 (Game Rules)
     elif text in ["📜 游戏规则", "📜 Game Rules", "/rules"]:
         await rules_command(update, context)
 
-    # 8. 联系客服 (Contact Support)
-    elif text in ["👨‍💻 联系客服", "👨‍💻 Contact Support", "/support"]:
+    elif text in ["👨‍💻 联系客服", "👨‍💻 Support", "/support"]:
         await support_command(update, context)
 
-    # 9. Fallback: Search Database by Period Number
     else:
         csv_path = get_csv_filepath()
         if not csv_path or not os.path.exists(csv_path):
@@ -337,7 +326,7 @@ def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_and_buttons))
 
     print("Starting Telegram bot polling...")
-    application.run_polling(drop_pending_updates=True)
+    application.run_polling(drop_pending_updates=True, poll_interval=1.0)
 
 if __name__ == "__main__":
     main()
